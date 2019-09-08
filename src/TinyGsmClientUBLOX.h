@@ -388,6 +388,9 @@ TINY_GSM_MODEM_WAIT_FOR_NETWORK()
       waitResponse();
     }
 
+    sendAT(GF("+UPSD=0,6,3"));				// automatic selection of authentication type (none/CHAP/PAP)
+    waitResponse();
+
     sendAT(GF("+UPSD=0,7,\"0.0.0.0\"")); // Dynamic IP on PSD profile 0
     waitResponse();
 
