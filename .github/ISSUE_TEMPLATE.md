@@ -15,7 +15,6 @@ with your board before submitting any issues.
 [ ] Request to support a new module
     <!-- Please, consider forking and submitting a pull request! -->
 [ ] Bug or problem compiling the library
-    <!-- NOTE:  If you are using an ESP32, you will not be able to compile the HttpClient or HttpsClient examples with ESP32 core >1.0.1.  Downgrade to version 1.0.1 or use the WebClient example.  Please comment on the issue on the ESP32 core, not in this library:  https://github.com/espressif/arduino-esp32/issues/2755 -->
 [ ] Bug or issue with library functionality (ie, sending data over TCP/IP)
 
 
@@ -23,7 +22,7 @@ with your board before submitting any issues.
 
 Main processor board: <!-- Uno, Zero, ESP32, Particle, etc -->
 Modem: <!-- Brand, model, variant, firmware version -->
-TinyGSM version: <!-- always try to use the latest (0.9.7) -->
+TinyGSM version: <!-- always try to use the latest (0.9.17) -->
 Code: <!-- Example name or paste in your code -->
 
 ### Scenario, steps to reproduce
