@@ -4,4 +4,4 @@ A small Arduino library for GSM modules, that just works.
 
 ## Difference from [Original Version](https://github.com/vshymanskyy/TinyGSM)
 ### TinyGsmClientUBLOX
--Supports PAP/CHAP authentication
+- Supports PAP/CHAP authentication
