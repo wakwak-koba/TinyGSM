@@ -46,21 +46,23 @@
 // Chips without internal buffering (A6/A7, ESP8266, M590)
 // need enough space in the buffer for the entire response
 // else data will be lost (and the http library will fail).
+#if !defined(TINY_GSM_RX_BUFFER)
 #define TINY_GSM_RX_BUFFER 650
+#endif
 
 // See all AT commands, if wanted
-//#define DUMP_AT_COMMANDS
+// #define DUMP_AT_COMMANDS
 
 // Define the serial console for debug prints, if needed
 #define TINY_GSM_DEBUG SerialMon
-//#define LOGGING  // <- Logging is for the HTTP library
+// #define LOGGING  // <- Logging is for the HTTP library
 
 // Range to attempt to autobaud
 #define GSM_AUTOBAUD_MIN 9600
 #define GSM_AUTOBAUD_MAX 115200
 
 // Add a reception delay - may be needed for a fast processor at a slow baud rate
-//#define TINY_GSM_YIELD() { delay(2); }
+// #define TINY_GSM_YIELD() { delay(2); }
 
 // Define how you're planning to connect to the internet
 #define TINY_GSM_USE_GPRS true
@@ -125,7 +127,7 @@ void setup() {
   // Set GSM module baud rate
   // TinyGsmAutoBaud(SerialAT,GSM_AUTOBAUD_MIN,GSM_AUTOBAUD_MAX);
   SerialAT.begin(9600);
-  delay(3000);
+  delay(6000);
 
   // Restart takes quite some time
   // To skip it, call init() instead of restart()
@@ -143,11 +145,6 @@ void setup() {
     modem.simUnlock(GSM_PIN);
   }
 #endif
-
-  if (!modem.hasSSL()) {
-    SerialMon.println(F("SSL is not supported by this modem"));
-    while(true) { delay(1000); }
-  }
 }
 
 void loop() {

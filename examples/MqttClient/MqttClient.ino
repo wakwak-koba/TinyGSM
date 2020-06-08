@@ -60,7 +60,7 @@
 //SoftwareSerial SerialAT(2, 3); // RX, TX
 
 // See all AT commands, if wanted
-//#define DUMP_AT_COMMANDS
+// #define DUMP_AT_COMMANDS
 
 // Define the serial console for debug prints, if needed
 #define TINY_GSM_DEBUG SerialMon
@@ -70,7 +70,7 @@
 #define GSM_AUTOBAUD_MAX 115200
 
 // Add a reception delay - may be needed for a fast processor at a slow baud rate
-//#define TINY_GSM_YIELD() { delay(2); }
+// #define TINY_GSM_YIELD() { delay(2); }
 
 // Define how you're planning to connect to the internet
 #define TINY_GSM_USE_GPRS true
@@ -125,7 +125,7 @@ PubSubClient mqtt(client);
 #define LED_PIN 13
 int ledStatus = LOW;
 
-long lastReconnectAttempt = 0;
+uint32_t lastReconnectAttempt = 0;
 
 void mqttCallback(char* topic, byte* payload, unsigned int len) {
   SerialMon.print("Message arrived [");
@@ -179,7 +179,7 @@ void setup() {
   // Set GSM module baud rate
   // TinyGsmAutoBaud(SerialAT,GSM_AUTOBAUD_MIN,GSM_AUTOBAUD_MAX);
   SerialAT.begin(9600);
-  delay(3000);
+  delay(6000);
 
   // Restart takes quite some time
   // To skip it, call init() instead of restart()
@@ -252,7 +252,7 @@ void loop() {
   if (!mqtt.connected()) {
     SerialMon.println("=== MQTT NOT CONNECTED ===");
     // Reconnect every 10 seconds
-    unsigned long t = millis();
+    uint32_t t = millis();
     if (t - lastReconnectAttempt > 10000L) {
       lastReconnectAttempt = t;
       if (mqttConnect()) {

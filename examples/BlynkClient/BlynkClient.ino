@@ -26,7 +26,7 @@
 
 // Default heartbeat interval for GSM is 60
 // If you want override this value, uncomment and set this option:
-//#define BLYNK_HEARTBEAT 30
+// #define BLYNK_HEARTBEAT 30
 
 // Select your modem:
 #define TINY_GSM_MODEM_SIM800
@@ -82,7 +82,7 @@ void setup()
 
   // Set GSM module baud rate
   SerialAT.begin(115200);
-  delay(3000);
+  delay(6000);
 
   // Restart takes quite some time
   // To skip it, call init() instead of restart()
