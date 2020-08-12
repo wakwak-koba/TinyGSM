@@ -31,6 +31,7 @@ static const char GSM_OK[] TINY_GSM_PROGMEM    = "OK" GSM_NL;
 static const char GSM_ERROR[] TINY_GSM_PROGMEM = "ERROR" GSM_NL;
 #if defined       TINY_GSM_DEBUG
 static const char GSM_CME_ERROR[] TINY_GSM_PROGMEM = GSM_NL "+CME ERROR:";
+static const char GSM_CMS_ERROR[] TINY_GSM_PROGMEM = GSM_NL "+CMS ERROR:";
 #endif
 
 enum RegStatus {
@@ -382,7 +383,7 @@ class TinyGsmSim800 : public TinyGsmModem<TinyGsmSim800>,
     sendAT(GF("+CIPSHUT"));
     if (waitResponse(60000L) != 1) { return false; }
 
-    sendAT(GF("+CGATT=0"));  // Deactivate the bearer context
+    sendAT(GF("+CGATT=0"));  // Detach from GPRS
     if (waitResponse(60000L) != 1) { return false; }
 
     return true;
@@ -395,9 +396,7 @@ class TinyGsmSim800 : public TinyGsmModem<TinyGsmSim800>,
   // May not return the "+CCID" before the number
   String getSimCCIDImpl() {
     sendAT(GF("+CCID"));
-    if (waitResponse(GF(GSM_NL)) != 1) {
-      return "";
-    }
+    if (waitResponse(GF(GSM_NL)) != 1) { return ""; }
     String res = stream.readStringUntil('\n');
     waitResponse();
     // Trim out the CCID header in case it is there
@@ -507,6 +506,18 @@ class TinyGsmSim800 : public TinyGsmModem<TinyGsmSim800>,
     sendAT(GF("+CIPSSL="), ssl);
     rsp = waitResponse();
     if (ssl && rsp != 1) { return false; }
+#ifdef TINY_GSM_SSL_CLIENT_AUTHENTICATION
+    // set SSL options
+    // +SSLOPT=<opt>,<enable>
+    // <opt>
+    //    0 (default) ignore invalid certificate
+    //    1 client authentication
+    // <enable>
+    //    0 (default) close
+    //    1 open
+    sendAT(GF("+CIPSSL=1,1"));
+    if (waitResponse() != 1) return false;
+#endif
 #endif
     sendAT(GF("+CIPSTART="), mux, ',', GF("\"TCP"), GF("\",\""), host,
            GF("\","), port);
@@ -610,10 +621,11 @@ class TinyGsmSim800 : public TinyGsmModem<TinyGsmSim800>,
                       GsmConstStr r2 = GFP(GSM_ERROR),
 #if defined TINY_GSM_DEBUG
                       GsmConstStr r3 = GFP(GSM_CME_ERROR),
+                      GsmConstStr r4 = GFP(GSM_CMS_ERROR),
 #else
-                      GsmConstStr r3 = NULL,
+                      GsmConstStr r3 = NULL, GsmConstStr r4 = NULL,
 #endif
-                      GsmConstStr r4 = NULL, GsmConstStr r5 = NULL) {
+                      GsmConstStr r5 = NULL) {
     /*String r1s(r1); r1s.trim();
     String r2s(r2); r2s.trim();
     String r3s(r3); r3s.trim();
@@ -715,10 +727,11 @@ class TinyGsmSim800 : public TinyGsmModem<TinyGsmSim800>,
                       GsmConstStr r2 = GFP(GSM_ERROR),
 #if defined TINY_GSM_DEBUG
                       GsmConstStr r3 = GFP(GSM_CME_ERROR),
+                      GsmConstStr r4 = GFP(GSM_CMS_ERROR),
 #else
-                      GsmConstStr r3 = NULL,
+                      GsmConstStr r3 = NULL, GsmConstStr r4 = NULL,
 #endif
-                      GsmConstStr r4 = NULL, GsmConstStr r5 = NULL) {
+                      GsmConstStr r5 = NULL) {
     String data;
     return waitResponse(timeout_ms, data, r1, r2, r3, r4, r5);
   }
@@ -727,15 +740,16 @@ class TinyGsmSim800 : public TinyGsmModem<TinyGsmSim800>,
                       GsmConstStr r2 = GFP(GSM_ERROR),
 #if defined TINY_GSM_DEBUG
                       GsmConstStr r3 = GFP(GSM_CME_ERROR),
+                      GsmConstStr r4 = GFP(GSM_CMS_ERROR),
 #else
-                      GsmConstStr r3 = NULL,
+                      GsmConstStr r3 = NULL, GsmConstStr r4 = NULL,
 #endif
-                      GsmConstStr r4 = NULL, GsmConstStr r5 = NULL) {
+                      GsmConstStr r5 = NULL) {
     return waitResponse(1000, r1, r2, r3, r4, r5);
   }
 
  public:
-  Stream&          stream;
+  Stream& stream;
 
  protected:
   GsmClientSim800* sockets[TINY_GSM_MUX_COUNT];
