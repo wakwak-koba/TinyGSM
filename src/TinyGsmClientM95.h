@@ -227,6 +227,9 @@ class TinyGsmM95 : public TinyGsmModem<TinyGsmM95>,
     return waitResponse() == 1;
   }
 
+  bool setPhoneFunctionalityImpl(uint8_t fun, bool reset = false)
+      TINY_GSM_ATTR_NOT_IMPLEMENTED;
+
   /*
    * Generic network functions
    */
@@ -623,7 +626,7 @@ class TinyGsmM95 : public TinyGsmModem<TinyGsmM95>,
   }
 
  public:
-  Stream&       stream;
+  Stream& stream;
 
  protected:
   GsmClientM95* sockets[TINY_GSM_MUX_COUNT];

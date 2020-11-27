@@ -572,6 +572,9 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
 
   bool sleepEnableImpl(bool enable = true) TINY_GSM_ATTR_NOT_IMPLEMENTED;
 
+  bool setPhoneFunctionalityImpl(uint8_t fun, bool reset = false)
+      TINY_GSM_ATTR_NOT_IMPLEMENTED;
+
   /*
    * Generic network functions
    */
@@ -1441,7 +1444,8 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
   }
 
  public:
-  Stream&        stream;
+  Stream& stream;
+
  protected:
   GsmClientXBee* sockets[TINY_GSM_MUX_COUNT];
   const char*    gsmNL = GSM_NL;

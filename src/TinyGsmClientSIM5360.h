@@ -222,9 +222,7 @@ class TinyGsmSim5360 : public TinyGsmModem<TinyGsmSim5360>,
     if (waitResponse(10000L) != 1) { return false; }
     // After booting, modem sends out messages as each of its
     // internal modules loads.  The final message is "PB DONE".
-    if (waitResponse(40000L, GF(GSM_NL "PB DONE")) != 1) {
-      return false;
-    }
+    if (waitResponse(40000L, GF(GSM_NL "PB DONE")) != 1) { return false; }
     return init();
   }
 
@@ -234,8 +232,7 @@ class TinyGsmSim5360 : public TinyGsmModem<TinyGsmSim5360>,
   }
 
   bool radioOffImpl() {
-    sendAT(GF("+CFUN=4"));
-    if (waitResponse(10000L) != 1) { return false; }
+    if (!setPhoneFunctionality(4)) { return false; }
     delay(3000);
     return true;
   }
@@ -243,6 +240,11 @@ class TinyGsmSim5360 : public TinyGsmModem<TinyGsmSim5360>,
   bool sleepEnableImpl(bool enable = true) {
     sendAT(GF("+CSCLK="), enable);
     return waitResponse() == 1;
+  }
+
+  bool setPhoneFunctionalityImpl(uint8_t fun, bool reset = false) {
+    sendAT(GF("+CFUN="), fun, reset ? ",1" : "");
+    return waitResponse(10000L) == 1;
   }
 
   /*
@@ -583,9 +585,7 @@ class TinyGsmSim5360 : public TinyGsmModem<TinyGsmSim5360>,
     for (int muxNo = 0; muxNo < TINY_GSM_MUX_COUNT; muxNo++) {
       // +CIPCLOSE:<link0_state>,<link1_state>,...,<link9_state>
       bool muxState = stream.parseInt();
-      if (sockets[muxNo]) {
-        sockets[muxNo]->sock_connected = muxState;
-      }
+      if (sockets[muxNo]) { sockets[muxNo]->sock_connected = muxState; }
     }
     waitResponse();  // Should be an OK at the end
     if (!sockets[mux]) return false;
@@ -718,7 +718,7 @@ class TinyGsmSim5360 : public TinyGsmModem<TinyGsmSim5360>,
   }
 
  public:
-  Stream&           stream;
+  Stream& stream;
 
  protected:
   GsmClientSim5360* sockets[TINY_GSM_MUX_COUNT];
