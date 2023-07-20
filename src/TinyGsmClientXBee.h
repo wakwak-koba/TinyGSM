@@ -108,12 +108,12 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
     }
 
    public:
-    // NOTE:  The XBee saves all connection information (ssid/pwd or apn AND
-    // last used IP address) in flash (NVM).  When you turn it on it immediately
-    // prepares to re-connect to whatever was last set.  The TCP connection
-    // itself is not opened until you attempt to send data. Because all settings
-    // are saved to flash, it is possible (or likely) that you could send data
-    // even if you haven't "made" any connection.
+    // NOTE:  The XBee saves all connection information (ssid/pwd etc) except
+    // IP address and port number, in flash (NVM).
+    // The NVM is be updated only when it is initialized.
+    // The TCP connection itself is not opened until you attempt to send data.
+    // Because all settings are saved to flash, it is possible (or likely) that
+    // you could send data even if you haven't "made" any connection.
     virtual int connect(const char* host, uint16_t port, int timeout_s) {
       // NOTE:  Not caling stop() or yeild() here
       at->streamClear();  // Empty anything in the buffer before starting
@@ -242,7 +242,10 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
      * Extended API
      */
 
-    String remoteIP() TINY_GSM_ATTR_NOT_IMPLEMENTED;
+    String remoteIP() {
+      IPAddress savedIP = at->savedIP;
+      return TinyGsmStringFromIp(savedIP);
+    }
   };
 
   /*
@@ -487,7 +490,7 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
       case XBEE_3G: return "Digi XBee Cellular 3G";
       case XBEE3_LTE1_ATT: return "Digi XBee3 Cellular LTE CAT 1";
       case XBEE3_LTEM_ATT: return "Digi XBee3 Cellular LTE-M";
-      default: return "Digi XBee";
+      default: return "Digi XBee Unknown";
     }
   }
 
@@ -503,11 +506,17 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
       digitalWrite(resetPin, LOW);
       delay(1);
       digitalWrite(resetPin, HIGH);
+    } else {
+      DBG("### Attempting a modem software restart");
+      restartImpl();
     }
   }
 
   bool restartImpl(const char* pin = NULL) {
-    if (!commandMode()) { return false; }  // Return immediately
+    if (!commandMode()) {
+      DBG("### XBee not in command mode for restart; Exit");
+      return false;
+    }  // Return immediately
 
     if (beeType == XBEE_UNKNOWN) getSeries();  // how we restart depends on this
 
@@ -720,13 +729,21 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
   }
 
   bool isNetworkConnectedImpl() {
+    // first check for association indicator
     RegStatus s = getRegistrationStatus();
     if (s == REG_OK) {
-      IPAddress ip = localIP();
-      if (ip != IPAddress(0, 0, 0, 0)) {
-        return true;
+      if (beeType == XBEE_S6B_WIFI) {
+        // For wifi bees, if the association indicator is ok, check that a both
+        // a local IP and DNS have been allocated
+        IPAddress ip  = localIP();
+        IPAddress dns = getDNSAddress();
+        if (ip != IPAddress(0, 0, 0, 0) && dns != IPAddress(0, 0, 0, 0)) {
+          return true;
+        } else {
+          return false;
+        }
       } else {
-        return false;
+        return true;
       }
     } else {
       return false;
@@ -759,6 +776,31 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
     XBEE_COMMAND_END_DECORATOR
     IPaddr.trim();
     return IPaddr;
+  }
+
+  String getDNS() {
+    XBEE_COMMAND_START_DECORATOR(5, "")
+    switch (beeType) {
+      case XBEE_S6B_WIFI: {
+        sendAT(GF("NS"));
+        break;
+      }
+      default: {
+        sendAT(GF("N1"));
+        break;
+      }
+    }
+    String DNSaddr;
+    DNSaddr.reserve(16);
+    // wait for the response - this response can be very slow
+    DNSaddr = readResponseString(30000);
+    XBEE_COMMAND_END_DECORATOR
+    DNSaddr.trim();
+    return DNSaddr;
+  }
+
+  IPAddress getDNSAddress() {
+    return TinyGsmIpFromString(getDNS());
   }
 
   /*
@@ -1120,18 +1162,24 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
         // Put in SSL over TCP communication mode
         changesMade |= changeSettingIfNeeded(GF("IP"), 0x4);
       } else {
-        // Put in TCP mode
+        // Put in unsecured TCP mode
         changesMade |= changeSettingIfNeeded(GF("IP"), 0x1);
       }
+      bool changesMadeSSL = changesMade;
 
       changesMade |= changeSettingIfNeeded(
           GF("DL"), String(host));  // Set the "Destination Address Low"
       changesMade |= changeSettingIfNeeded(
           GF("DE"), String(port, HEX));  // Set the destination port
 
+      // WiFi Bee is different
+      if (beeType == XBEE_S6B_WIFI) { changesMade = changesMadeSSL; }
+
       if (changesMade) { success &= writeChanges(); }
     }
 
+    // confirm the XBee type if needed so we know if we can know if connected
+    if (beeType == XBEE_UNKNOWN) { getSeries(); }
     // we'll accept either unknown or connected
     if (beeType != XBEE_S6B_WIFI) {
       uint16_t ci = getConnectionIndicator();
@@ -1152,24 +1200,20 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
 
     XBEE_COMMAND_START_DECORATOR(5, false)
 
-    // Get the current socket timeout
-    sendAT(GF("TM"));
-    String timeoutUsed = readResponseString(5000L);
+    // For WiFi models, there's no direct way to close the socket;
+    // use DigiXBeeWifi::disconnectInternet(void)
 
-    // For WiFi models, there's no direct way to close the socket.  This is a
-    // hack to shut the socket by setting the timeout to zero.
-    if (beeType == XBEE_S6B_WIFI) {
-      sendAT(GF("TM0"));        // Set socket timeout to 0
-      waitResponse(maxWaitMs);  // This response can be slow
-      writeChanges();
+    if (beeType != XBEE_S6B_WIFI) {
+      // Get the current socket timeout
+      sendAT(GF("TM"));
+      String timeoutUsed = readResponseString(5000L);
+
+      // For cellular models, per documentation: If you write the TM (socket
+      // timeout) value while in Transparent Mode, the current connection is
+      // immediately closed - this works even if the TM values is unchanged
+      sendAT(GF("TM"), timeoutUsed);  // Re-set socket timeout
+      waitResponse(maxWaitMs);        // This response can be slow
     }
-
-    // For cellular models, per documentation: If you write the TM (socket
-    // timeout) value while in Transparent Mode, the current connection is
-    // immediately closed - this works even if the TM values is unchanged
-    sendAT(GF("TM"), timeoutUsed);  // Re-set socket timeout
-    waitResponse(maxWaitMs);        // This response can be slow
-    writeChanges();
 
     XBEE_COMMAND_END_DECORATOR
     return true;
@@ -1418,9 +1462,11 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
     if (inCommandMode && (millis() - lastCommandModeMillis) < 10000L)
       return true;
 
-    uint8_t triesMade       = 0;
-    uint8_t triesUntilReset = 4;  // only reset after 4 failures
+    uint8_t triesMade = 0;
+    int8_t  res;
     bool    success         = false;
+    uint8_t triesUntilReset = 4;  // reset after number of tries
+    if (beeType == XBEE_S6B_WIFI) { triesUntilReset = 9; }
     streamClear();  // Empty everything in the buffer before starting
 
     while (!success && triesMade < retries) {
@@ -1428,8 +1474,15 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
       // Default guard time is 1s, but the init fxn decreases it to 100 ms
       delay(guardTime + 10);
       streamWrite(GF("+++"));  // enter command mode
-      int8_t res = waitResponse(guardTime * 2);
-      success    = (1 == res);
+
+      if (beeType != XBEE_S6B_WIFI) {
+        res = waitResponse(guardTime * 2);
+      } else {
+        // S6B wait a full second for OK
+        res = waitResponse();
+      }
+
+      success = (1 == res);
       if (0 == res) {
         triesUntilReset--;
         if (triesUntilReset == 0) {
@@ -1437,6 +1490,9 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
           pinReset();  // if it's unresponsive, reset
           delay(250);  // a short delay to allow it to come back up
           // TODO(SRGDamia1) optimize this
+        }
+        if (beeType == XBEE_S6B_WIFI) {
+          delay(5000);  // WiFi module frozen, wait longer
         }
       }
       triesMade++;
@@ -1473,8 +1529,17 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
   void getSeries(void) {
     sendAT(GF("HS"));  // Get the "Hardware Series";
     int16_t intRes = readResponseInt();
-    beeType        = (XBeeType)intRes;
-    DBG(GF("### Modem: "), getModemName());
+    // if no response from module, then try again
+    if (0xff == intRes) {
+      sendAT(GF("HS"));  // Get the "Hardware Series";
+      intRes = readResponseInt();
+      if (0xff == intRes) {
+        // Still no response, leave a known value - should reset
+        intRes = XBEE_UNKNOWN;
+      }
+    }
+    beeType = (XBeeType)intRes;
+    DBG(GF("### Modem: "), getModemName(), beeType);
   }
 
   String readResponseString(uint32_t timeout_ms = 1000) {
@@ -1514,6 +1579,12 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
       sendAT(cmd, newValue);
       // return false if we attempted to change but failed
       if (waitResponse(timeout_ms) != 1) { return false; }
+      // check if we succeeded in staging a change and retry once
+      sendAT(cmd);
+      if (readResponseInt() != newValue) {
+        sendAT(cmd, newValue);
+        if (waitResponse(timeout_ms) != 1) { return false; }
+      }
       // return true if we succeeded in staging a change
       return true;
     }
@@ -1528,7 +1599,12 @@ class TinyGsmXBee : public TinyGsmModem<TinyGsmXBee>,
       sendAT(cmd, newValue);
       // return false if we attempted to change but failed
       if (waitResponse(timeout_ms) != 1) { return false; }
-      // return true if we succeeded in staging a change
+      // check if we succeeded in staging a change and retry once
+      sendAT(cmd);
+      if (readResponseString() != newValue) {
+        sendAT(cmd, newValue);
+        if (waitResponse(timeout_ms) != 1) { return false; }
+      }
       return true;
     }
     // return false if no change is needed

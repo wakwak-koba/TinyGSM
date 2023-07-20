@@ -41,7 +41,7 @@ jobs:
           ]
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Set variables
         run: |
@@ -54,7 +54,9 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
 
       # This should be pulled from cache, if there's not a new version
       - name: Install PlatformIO
@@ -63,7 +65,7 @@ jobs:
           pip install --upgrade platformio
 
       - name: Restore or Cache Platforms and Libraries
-        uses: actions/cache@v2.1.5
+        uses: actions/cache@v3.3.1
         id: cache_pio
         with:
           path: ~/.platformio
